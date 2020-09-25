@@ -38,15 +38,71 @@ long serialSum(long randNums, int *numArray){
     return sum;
 }
 
-long pToPSum(long randNums, int *numArray, int argc, char **argv, int np, int pid){
+long pTopSum(long randNums, int *numArray, int argc, char **argv, int np, int pid, MPI_Status status){
 
-    
+    int send, recv;
+    int part = randNums/(np-1);
+    int q = 0;
+    int i;
+    int val =1;
+  
+    if (pid == 0)
+    {
+        for (i = 1; i < np; i++)
+        {
+            send = part * (i-1);
+            MPI_Send(&send, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+        }
 
+    }
+    else
+    {
+        MPI_Recv(&recv, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
+        for (i = recv; i < recv + part; i++)
+        {
+            val = val+numArray[i];
+
+        }
+        MPI_Send(&val, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+    }
+    if (pid == 0)
+    {
+        for(i = 1; i < np; i++){
+            MPI_Recv(&val, 1, MPI_INT, i, 0, MPI_COMM_WORLD, &status);
+            q = q + val;
+        }
+    }
+    if (pid == 0)
+    {
+        return q;
+    }
+ 
+    return 0;
 
 }
 
-long collSum(long randNums, int *numArray, int argc, char **argv, int np, int pid){
+long collectiveSum(long randNums, int *numArray, int argc, char **argv, int np, int pid){
+    int load = randNums/(np-1);
+    int tosum[load];
+    int sums[np];
+    int i;
 
+    MPI_Scatter(numArray,load,MPI_INT, tosum, load, MPI_INT, 0, MPI_COMM_WORLD);
+
+    sums[pid] = 0;
+    for(i=0; i<np; i++){
+        sums[pid] += tosum[i];
+    }
+
+    MPI_Gather(&sums[pid], 1, MPI_INT, sums, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  
+    if(pid==0){
+        for(i=1; i<np; i++){
+            sums[0] += sums[i];
+            return sums[0];
+        }
+     }
+     return 0;
 
 }
 
@@ -95,7 +151,7 @@ int main(int argc, char **argv){
     
     clock_t begin1 = clock();
 
-    int ptop = pTopSum(randNums, numArray, argc, argv, np, pid);
+    int ptop = pTopSum(randNums, numArray, argc, argv, np, pid, status);
     printf("The ptop  sum is %d\n", ptop);
    
     clock_t end1 = clock();
@@ -106,7 +162,7 @@ int main(int argc, char **argv){
     // COLLECTIVE COMMUNICATION SUMMATION! 
     clock_t begin2 = clock();
 
-    int collSum = collSum(randNums, numArray, argc, argcv, np, pid);
+    int collSum = collectiveSum(randNums, numArray, argc, argv, np, pid);
     printf("The collSum sum is %d\n", collSum);
    
     clock_t end2 = clock();
