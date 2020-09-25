@@ -2,27 +2,10 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "parallelSum.h"
+
 #define MIN 0
 #define MAX 5
-
-int* generateRands(int lower, int upper, int count){
-    int i;
-    int *num_array = (int *)malloc(sizeof(int)*count);
-
-    if(num_array == NULL){
-        printf("malloc failed");
-        exit(1);
-    }
-
-
-    for(i = 0; i < count; i++){
-       num_array[i] = (rand() % (upper-lower+1))+lower;
-
-    }
-
-    return num_array;
-}
-
 
 int main(int argc, char **argv){
 
@@ -47,13 +30,7 @@ int main(int argc, char **argv){
 
     // START TIMING HERE!
     clock_t begin = clock();
-    int i;
-    long sum = 0;
-
-    for(i=0; i<randNums; i++){
-        sum += numArray[i];
-    }
-
+    int sum = serialSum(randNums, numArray);
     printf("The sum is %d\n", sum);
    
     clock_t end = clock();
