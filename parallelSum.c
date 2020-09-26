@@ -82,7 +82,7 @@ long pTopSum(long randNums, int *numArray, int argc, char **argv, int np, int pi
 }
 
 long collectiveSum(long randNums, int *numArray, int argc, char **argv, int np, int pid){
-    int load = randNums/(np-1);
+    int load = randNums/(np);
     int tosum[load];
     int sums[np];
     int i;
@@ -94,7 +94,7 @@ long collectiveSum(long randNums, int *numArray, int argc, char **argv, int np, 
         sums[pid] += tosum[i];
     }
 
-    MPI_Gather(&sums[pid], 1, MPI_INT, sums, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Gather(&sums[pid], 1, MPI_INT, sums-1, 1, MPI_INT, 0, MPI_COMM_WORLD);
   
     if(pid==0){
         for(i=1; i<np; i++){
@@ -169,7 +169,7 @@ int main(int argc, char **argv){
     double time_spent2 = (double)(end2 - begin2);
 
     printf("Time spent in collective communication: %f\n", time_spent2);
-
+     
     MPI_Finalize();
 
     return 0;
