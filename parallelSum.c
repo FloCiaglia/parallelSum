@@ -7,6 +7,11 @@
 #define MIN 0
 #define MAX 5
 
+//Citing Sources: https://www.geeksforgeeks.org/generating-random-number-range-c/
+//                http://homepages.math.uic.edu/~jan/mcs572/using_mpi.pdf
+//                http://homepages.math.uic.edu/~jan/mcs572/mcs572notes/lec05.html
+
+
 int* generateRands(int lower, int upper, int count){
     int i;
     int *num_array = (int *)malloc(sizeof(int)*count);
@@ -140,35 +145,40 @@ int main(int argc, char **argv){
 
         int serial = serialSum(randNums, numArray);
         printf("The serial sum is %d\n", serial);
+
+        clock_t end = clock();
+        double time_spent = (double)(end - begin);
+
+        printf("Time spent in serial: %f\n", time_spent);
+        printf("\n");
     }
    
-    clock_t end = clock();
-    double time_spent = (double)(end - begin);
-
-    printf("Time spent in serial: %f\n", time_spent);
-
     // POINT TO POINT SUMMATION!
     
     clock_t begin1 = clock();
 
     int ptop = pTopSum(randNums, numArray, argc, argv, np, pid, status);
-    printf("The ptop  sum is %d\n", ptop);
+    if(pid==0){
+        printf("The ptop  sum is %d\n", ptop);
    
-    clock_t end1 = clock();
-    double time_spent1 = (double)(end1 - begin1);
-
-    printf("Time spent in point to point: %f\n", time_spent1);
-
+        clock_t end1 = clock();
+         double time_spent1 = (double)(end1 - begin1);
+        printf("Time spent in point to point: %f\n", time_spent1);
+        printf("\n");
+    }
     // COLLECTIVE COMMUNICATION SUMMATION! 
+
     clock_t begin2 = clock();
 
     int collSum = collectiveSum(randNums, numArray, argc, argv, np, pid);
-    printf("The collSum sum is %d\n", collSum);
+    if(pid==0){
+        printf("The collSum sum is %d\n", collSum);
    
-    clock_t end2 = clock();
-    double time_spent2 = (double)(end2 - begin2);
+        clock_t end2 = clock();
+        double time_spent2 = (double)(end2 - begin2);
 
-    printf("Time spent in collective communication: %f\n", time_spent2);
+        printf("Time spent in collective communication: %f\n", time_spent2);
+    }
      
     MPI_Finalize();
 
