@@ -52,9 +52,6 @@ long long pTopSum(long randNums, int *numArray, int np, int pid, MPI_Status stat
     int i;
 
     int ptp_sum = 0;
-    int f;
-    int send, recv;
-
 
     if (pid == 0)
     {
@@ -90,43 +87,24 @@ long long pTopSum(long randNums, int *numArray, int np, int pid, MPI_Status stat
 long long collectiveSum(long randNums, int *numArray, int np, int pid){
 
     int load = randNums/np;
-    long long sum = 0;
+    long long coll_sum = 0;
     int i;
     int *output = (int*) malloc(sizeof(int)* randNums);
     int excess = randNums % np;
 
 
-    //int tosum[load];
-    //long long sum2;
-
-    /*MPI_Scatter(numArray, load, MPI_INT, tosum, load, MPI_INT, 0, MPI_COMM_WORLD);
-
-    sum = 0;
-    for(i=0; i<load; i++){
-        sum += tosum[i];
-    }
-
-    MPI_Reduce(&sum, &sum2, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-  
-    if(pid==0){
-        for(i=1; i<np; i++){
-            sums[0] += sums[i];
-            return sums[0];
-        }
-     }*/
-
     if(pid == (np-1)){
         for(i = 0; i < (load+excess); i++){
-            sum += numArray[pid*load+i];
+            coll_sum += numArray[pid*load+i];
         }
 
     }else{
         for(i =0; i < load; i++){
-            sum += numArray[pid*load+i];
+            coll_sum += numArray[pid*load+i];
         }
     }
 
-    MPI_Reduce(&sum, output, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&coll_sum, output, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
     if(pid == 0){
         return output[0];
     }
@@ -157,10 +135,6 @@ int main(int argc, char **argv){
     randNums *= 100000;
     
     numArray = generateRands(MIN, MAX, randNums);
-    /*int i;
-    for(i=0; i < randNums; i++){
-        printf("%d ", numArray[i]);
-    }*/
 
     // SERIAL SUMMATION!
     clock_t begin = clock();
@@ -175,7 +149,6 @@ int main(int argc, char **argv){
         
 
         printf("Time spent in serial: %f\n", (float)time_spent/CLOCKS_PER_SEC);
-        //printf("time taken from serial %ld\n", ((end1.tv_sec + end1.tv_usec)-(start1.tv_sec+start1.tv_usec)));
         printf("\n");
     }
    
@@ -186,7 +159,7 @@ int main(int argc, char **argv){
 
     long long ptop = pTopSum(randNums, numArray, np, pid, status);
     if(pid==0){
-        printf("The ptop  sum is %d\n", ptop);
+        printf("The point to point sum is %d\n", ptop);
    
         clock_t end1 = clock();
         double time_spent1 = (double)(end1 - begin1);
@@ -202,7 +175,7 @@ int main(int argc, char **argv){
 
     long long collSum = collectiveSum(randNums, numArray, np, pid);
     if(pid==0){
-        printf("The collSum sum is %d\n", collSum);
+        printf("The collective sum is %d\n", collSum);
    
         clock_t end2 = clock();
         double time_spent2 = (double)(end2 - begin2);
