@@ -2,7 +2,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <mpi.h>
-
+#include <sys/time.h>
+#include <time.h>
 
 #define MIN 0
 #define MAX 5
@@ -21,7 +22,7 @@ int* generateRands(int lower, int upper, int count){
         exit(1);
     }
 
-
+    srand(53);
     for(i = 0; i < count; i++){
        num_array[i] = (rand() % (upper-lower+1))+lower;
 
@@ -31,7 +32,7 @@ int* generateRands(int lower, int upper, int count){
 }
 
 
-long serialSum(long randNums, int *numArray){
+long long serialSum(long randNums, int *numArray){
 
     int i;
     long sum = 0;
@@ -43,70 +44,93 @@ long serialSum(long randNums, int *numArray){
     return sum;
 }
 
-long pTopSum(long randNums, int *numArray, int argc, char **argv, int np, int pid, MPI_Status status){
+long long pTopSum(long randNums, int *numArray, int np, int pid, MPI_Status status){
 
-    int send, recv;
-    int part = randNums/(np-1);
-    int q = 0;
+    int load = randNums/np;
+    int excess = randNums % np;
+    int sum = 0;
     int i;
-    int val =1;
-  
+
+    int ptp_sum = 0;
+    int f;
+    int send, recv;
+
+
     if (pid == 0)
     {
-        for (i = 1; i < np; i++)
+        for (i = 0; i < load; i++)
         {
-            send = part * (i-1);
-            MPI_Send(&send, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+            ptp_sum += numArray[pid*load+i];
         }
-
-    }
-    else
-    {
-        MPI_Recv(&recv, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
-        for (i = recv; i < recv + part; i++)
-        {
-            val = val+numArray[i];
-
-        }
-        MPI_Send(&val, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-    }
-    if (pid == 0)
-    {
         for(i = 1; i < np; i++){
-            MPI_Recv(&val, 1, MPI_INT, i, 0, MPI_COMM_WORLD, &status);
-            q = q + val;
+            MPI_Recv(&sum, 1, MPI_INT, i, 1, MPI_COMM_WORLD, &status);
+            ptp_sum += sum;
         }
-    }
-    if (pid == 0)
-    {
-        return q;
-    }
- 
-    return 0;
+    }else{
+        if(pid == (np-1)){
+            for(i = 0; i < (load + excess); i++){
+                sum += numArray[pid*load+i];
+            }
+        }else{
+            for(i = 0; i < load; i++){
+                sum += numArray[pid*load+i];
+            }
 
+        }
+
+        MPI_Send(&sum, 1, MPI_INT, 0, 1, MPI_COMM_WORLD);
+    }
+
+    if(pid == 0){
+        return ptp_sum;
+    }
+    return 0;
 }
 
-long collectiveSum(long randNums, int *numArray, int argc, char **argv, int np, int pid){
-    int load = randNums/(np);
-    int tosum[load];
-    int sums[np];
+long long collectiveSum(long randNums, int *numArray, int np, int pid){
+
+    int load = randNums/np;
+    long long sum = 0;
     int i;
+    int *output = (int*) malloc(sizeof(int)* randNums);
+    int excess = randNums % np;
 
-    MPI_Scatter(numArray,load,MPI_INT, tosum, load, MPI_INT, 0, MPI_COMM_WORLD);
 
-    sums[pid] = 0;
-    for(i=0; i<np; i++){
-        sums[pid] += tosum[i];
+    //int tosum[load];
+    //long long sum2;
+
+    /*MPI_Scatter(numArray, load, MPI_INT, tosum, load, MPI_INT, 0, MPI_COMM_WORLD);
+
+    sum = 0;
+    for(i=0; i<load; i++){
+        sum += tosum[i];
     }
 
-    MPI_Gather(&sums[pid], 1, MPI_INT, sums-1, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&sum, &sum2, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
   
     if(pid==0){
         for(i=1; i<np; i++){
             sums[0] += sums[i];
             return sums[0];
         }
-     }
+     }*/
+
+    if(pid == (np-1)){
+        for(i = 0; i < (load+excess); i++){
+            sum += numArray[pid*load+i];
+        }
+
+    }else{
+        for(i =0; i < load; i++){
+            sum += numArray[pid*load+i];
+        }
+    }
+
+    MPI_Reduce(&sum, output, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+    if(pid == 0){
+        return output[0];
+    }
+
      return 0;
 
 }
@@ -143,41 +167,47 @@ int main(int argc, char **argv){
 
     if(pid==0){
 
-        int serial = serialSum(randNums, numArray);
+        long long serial = serialSum(randNums, numArray);
         printf("The serial sum is %d\n", serial);
 
         clock_t end = clock();
         double time_spent = (double)(end - begin);
+        
 
-        printf("Time spent in serial: %f\n", time_spent);
+        printf("Time spent in serial: %f\n", (float)time_spent/CLOCKS_PER_SEC);
+        //printf("time taken from serial %ld\n", ((end1.tv_sec + end1.tv_usec)-(start1.tv_sec+start1.tv_usec)));
         printf("\n");
     }
    
+    MPI_Barrier(MPI_COMM_WORLD);
     // POINT TO POINT SUMMATION!
-    
+
     clock_t begin1 = clock();
 
-    int ptop = pTopSum(randNums, numArray, argc, argv, np, pid, status);
+    long long ptop = pTopSum(randNums, numArray, np, pid, status);
     if(pid==0){
         printf("The ptop  sum is %d\n", ptop);
    
         clock_t end1 = clock();
-         double time_spent1 = (double)(end1 - begin1);
-        printf("Time spent in point to point: %f\n", time_spent1);
+        double time_spent1 = (double)(end1 - begin1);
+
+        printf("Time spent in point to point: %f\n", (float)time_spent1/CLOCKS_PER_SEC);
         printf("\n");
     }
+
+    MPI_Barrier(MPI_COMM_WORLD);
     // COLLECTIVE COMMUNICATION SUMMATION! 
 
     clock_t begin2 = clock();
 
-    int collSum = collectiveSum(randNums, numArray, argc, argv, np, pid);
+    long long collSum = collectiveSum(randNums, numArray, np, pid);
     if(pid==0){
         printf("The collSum sum is %d\n", collSum);
    
         clock_t end2 = clock();
         double time_spent2 = (double)(end2 - begin2);
 
-        printf("Time spent in collective communication: %f\n", time_spent2);
+        printf("Time spent in collective communication: %f\n", (float)time_spent2/CLOCKS_PER_SEC);
     }
      
     MPI_Finalize();
